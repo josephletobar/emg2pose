@@ -1,7 +1,7 @@
 from emg2pose.data import Emg2PoseSessionData
 import numpy as np
 
-def emg_features(x_win, zc_thresh=1e-3, ssc_thresh=1e-3):
+def _emg_features(x_win, zc_thresh=1e-3, ssc_thresh=1e-3):
     # MAV
     mav = np.mean(np.abs(x_win), axis=0)
 
@@ -30,33 +30,39 @@ def emg_features(x_win, zc_thresh=1e-3, ssc_thresh=1e-3):
     # concatenate all features
     return np.concatenate([mav, rms, wl, zc, ssc])
 
-def features(data : Emg2PoseSessionData):
+def features(data: Emg2PoseSessionData):
 
-    window = 500      # 250 ms @ 2000 Hz
-    stride = 67       # ~30 Hz
+    window = 500
+    stride = 67
 
-    X = data['emg']           
+    X = data['emg']
     y = data['joint_angles']
+    mask = data.no_ik_failure
 
     X_feats = []
     y_out = []
+    mask_out = []
 
     for start in range(0, len(X) - window + 1, stride):
         end = start + window
 
         x_win = X[start:end]
-        y_target = y[end - 1]   # align gt to end of window
+        y_target = y[end - 1]
+        mask_win = mask[start:end]
 
-        # placeholder feature (you replace this)
-        feats = emg_features(x_win)
+        feats = _emg_features(x_win)
 
         X_feats.append(feats)
         y_out.append(y_target)
 
+        # strict alignment
+        mask_out.append(np.all(mask_win))
+
     X_feats = np.array(X_feats)
     y_out = np.array(y_out)
+    mask_out = np.array(mask_out)
 
-    return X_feats, y_out
+    return X_feats, y_out, mask_out
     
 if __name__ == "__main__":
     from pathlib import Path
