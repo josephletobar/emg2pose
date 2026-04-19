@@ -4,7 +4,6 @@ import random
 import pandas as pd
 import numpy as np
 from emg2pose.data import Emg2PoseSessionData
-from emg2pose.utils import downsample
 
 from experiments.trainers import get_emg2pose, train_small_lstm, train_emg2pose, train_classic_ml
 from experiments.load_data import pick_one_user, pick_sessions, random_subset
