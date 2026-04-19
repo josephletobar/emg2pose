@@ -80,6 +80,31 @@ def emg2pose_inferece(data: Emg2PoseSessionData, module):
 
     return preds, joint_angles, no_ik_failure
 
+def emg2pose_window_inference(window, module):
+    """
+    window: np.ndarray of shape (T, C)
+    """
+
+    # (T, C) -> (1, C, T)
+    emg = torch.tensor(window.T, dtype=torch.float32).unsqueeze(0)
+
+    batch = {
+        "emg": emg,
+        # dummy placeholders (required by forward)
+        "joint_angles": torch.zeros((1, 20, emg.shape[-1])),  # adjust 20 if needed
+        "no_ik_failure": torch.ones((1, emg.shape[-1]))
+    }
+
+    batch = {k: v.to(module.device) for k, v in batch.items()}
+
+    with torch.no_grad():
+        preds, _, _ = module.forward(batch)
+
+    # (1, C_out, T) -> (T, C_out)
+    preds = preds[0].T.detach().cpu().numpy()
+
+    return preds
+
 def classic_ml_inference(data, ridge_model, svr_model, pls_model):
 
     x_features, gt, mask = features(data)
