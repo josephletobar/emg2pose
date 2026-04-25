@@ -53,10 +53,11 @@ def stream_inference(data, func, model, WINDOW, STRIDE=50, MAX_STEPS=500, WARMUP
 
             latency_buf.append(latency_ms)
 
-            
-
     mean = np.mean(latency_buf[WARMUP:])
     median = np.median(latency_buf[WARMUP:])
 
-    return mean, median, pred_buf
+    return {
+        "mean_latency_ms": mean,
+        "median_latency_ms": median
+    }
             
