@@ -436,13 +436,10 @@ def _joint_angles_to_frame(joint_angles, **kwargs):
 
 
 def joint_angles_to_frames(joint_angles_t, **kwargs):
-    frames = np.array(
-        [
-            _joint_angles_to_frame(joint_angles=joint_angles, **kwargs)
-            for joint_angles in tqdm(joint_angles_t)
-        ]
-    )
-    return frames
+    frames = []
+    for joint_angles in tqdm(joint_angles_t, desc="Frames"):
+        frames.append(_joint_angles_to_frame(joint_angles=joint_angles, **kwargs))
+    return np.array(frames)
 
 
 def joint_angles_to_frames_parallel(joint_angles, n_jobs=32, **kwargs):

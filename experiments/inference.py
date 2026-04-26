@@ -130,7 +130,8 @@ def classic_ml_inference(data, ridge_model, svr_model, pls_model):
     x_features, gt, mask = features(data)
 
     ridge_pred = ridge_model.predict(x_features)
-    svr_pred = svr_model.predict(x_features)
+    # svr_pred = svr_model.predict(x_features)
+    svr_pred = None
     pls_pred = pls_model.predict(x_features)
 
     return ridge_pred, svr_pred, pls_pred, gt, mask

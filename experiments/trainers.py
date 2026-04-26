@@ -136,7 +136,7 @@ def _train_subset(sessions, data_download_dir, epochs=100):
         "python", "-m", "emg2pose.train",
         "train=True",
         "eval=True",
-        "experiment=tracking_vemg2pose",
+        "experiment=regression_vemg2pose",
         "+trainer.accelerator=cpu",
         "+trainer.devices=1",
         f"trainer.max_epochs={epochs}",
@@ -145,8 +145,8 @@ def _train_subset(sessions, data_download_dir, epochs=100):
         f"data_location={TMP_DIR}"
     ],
         check=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
+        # stdout=subprocess.DEVNULL,
+        # stderr=subprocess.DEVNULL
     )
 
     final_ckpt = ckpt_dir / f"{ckpt_name}.ckpt"
@@ -264,7 +264,7 @@ def train_emg2pose(user_train_dict, data_dir, epochs):
 
     config = generate_hydra_config_from_overrides(
         overrides=[
-            "experiment=tracking_vemg2pose",
+            "experiment=regression_vemg2pose",
             f"checkpoint={checkpoint}"
         ]
     )
@@ -313,15 +313,16 @@ def train_classic_ml(emg_features, joint_angles):
 
     ridge_model.fit(X_train, y_train)
 
-    # --- SVR ---
-    svr_model = Pipeline([
-        ("scaler", StandardScaler()),
-        ("svr", MultiOutputRegressor(
-            SVR(kernel="rbf", C=1.0, epsilon=0.1)
-        ))
-    ])
+    # # --- SVR ---
+    # svr_model = Pipeline([
+    #     ("scaler", StandardScaler()),
+    #     ("svr", MultiOutputRegressor(
+    #         SVR(kernel="rbf", C=1.0, epsilon=0.1)
+    #     ))
+    # ])
 
-    svr_model.fit(X_train, y_train)
+    # svr_model.fit(X_train, y_train)
+    svr_model = None
 
     # --- PLS  ---
     pls_model = PLSRegression(n_components=10)  # try 5–20 range if needed

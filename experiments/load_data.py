@@ -4,7 +4,7 @@ from emg2pose.data import Emg2PoseSessionData
 
 # Load Data Based on Training Regime
 def load_data(data_regime, user_list):
-    if data_regime == "single_session":
+    if data_regime == "single_session" or data_regime == "test":
         user_train_dict = pick_one_user(user_list)
         user_train_dict = pick_sessions(data_regime, user_train_dict)
 
@@ -70,7 +70,7 @@ def pick_sessions(data_regime, user_train_dict):
         if not valid_sessions:
             raise RuntimeError(f"No valid sessions for {user}")
 
-        if data_regime == "single_session":
+        if data_regime == "single_session" or data_regime == "test":
             user_train_dict[user] = [random.choice(valid_sessions)]
         else:
             user_train_dict[user] = valid_sessions

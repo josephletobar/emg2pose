@@ -138,7 +138,7 @@ class ExperimentMetrics:
         from joblib import Parallel, delayed
         from tqdm import tqdm
 
-        gt, pred, _ = self._downsample(native_fs, fps)
+        pred, gt, _ = self._downsample(native_fs, fps)
 
         gt = gt[:max_frames]
         pred = pred[:max_frames]

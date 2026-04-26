@@ -3,11 +3,14 @@ import random
 from contextlib import contextmanager
 import time
 from datetime import datetime
-from pprint import pprint
+import mediapy as media
+import json
 
 import pandas as pd
 import numpy as np
 from emg2pose.data import Emg2PoseSessionData
+from emg2pose.visualization import remove_alpha_channel, joint_angles_to_frames_parallel
+from emg2pose.utils import downsample
 
 from experiments.trainers import get_emg2pose, train_small_lstm, train_emg2pose, train_classic_ml, build_features
 from experiments.load_data import load_data, concat_data
@@ -97,7 +100,12 @@ class ExperimentRunner():
         self.latency_rows = []
 
     def eval_seen_user(self):
-        # pick one random user
+
+        # sanity check on training data
+        if self.data_regime == "test":
+            return (self.user_train_dict[next(iter(self.user_train_dict))])[0]
+
+        # pick one random user in train dict
         rand_user = random.choice(list(self.user_train_dict.keys()))
 
         # get trained sessions for that user
@@ -160,9 +168,12 @@ class ExperimentRunner():
 
         self.user_train_dict = load_data(self.data_regime, self.user_list)
 
+        Path(f"{self.save_dir}/train_dict.json").write_text(
+            json.dumps({str(k): [str(s) for s in v] for k, v in self.user_train_dict.items()}, indent=2)
+        )
+
         print("\n=== DATA REGIME:", self.data_regime, "===")
         print(f"Users selected: {len(self.user_train_dict)}")
-        print()
 
         for user, sessions in self.user_train_dict.items():
             print(f"  {user.name}: {len(sessions)} session(s)\n")        
@@ -170,28 +181,33 @@ class ExperimentRunner():
         # Train models
         with timer("LSTM Training"):
             emg, joint_angles_lstm = concat_data(self.user_train_dict)
-            small_lstm_model, seq_len, ds_factor, stride = train_small_lstm(emg, joint_angles_lstm, epochs=1)
+            small_lstm_model, seq_len, ds_factor, stride = train_small_lstm(emg, joint_angles_lstm, epochs=5)
 
         with timer("Get Meta emg2pose"):
             meta_emg2pose_model = get_emg2pose(self.data_dir)
 
-        with timer("emg2pose Training"):
-            my_emg2pose_model = train_emg2pose(self.user_train_dict, self.data_dir, epochs=5)
+        # with timer("emg2pose Training"):
+        #     my_emg2pose_model = train_emg2pose(self.user_train_dict, self.data_dir, epochs=5)
 
         with timer("Classical ML Training"):
             emg_features, joint_angles_ml = build_features(self.user_train_dict)
-            ridge_model, svr_model, pls_model = train_classic_ml(emg_features, joint_angles_ml)
+            ridge_model, _, pls_model = train_classic_ml(emg_features, joint_angles_ml)
 
         # Get metrics
         for label, session_function in [
             ("seen_user", self.eval_seen_user),
             ("unseen_user", self.eval_unseen_user),
             ]:
+            if self.data_regime == "test" and label == "unseen_user": continue
             print(f"\n===== {label} EVAL ===== \n")
 
             eval_session = session_function()
             self.eval_data = Emg2PoseSessionData(hdf5_path=eval_session)
-
+            frames = joint_angles_to_frames_parallel(downsample(self.eval_data["joint_angles"], 2000, 30)[0:250])
+            frames = remove_alpha_channel(frames)
+            media.write_video(f"{self.save_dir}/ground_truth_{label}_eval.mp4", frames, fps=30)
+            print()
+        
             # Small LSTM
             with timer("LSTM"):
                 lstm_preds, lstm_gt, mask_lstm = small_lstm_inference(
@@ -208,21 +224,21 @@ class ExperimentRunner():
                 print("\n[Meta EMG2Pose]")
                 self.model_metrics(label, "meta_emg2pose", meta_emg2pose_model, preds, joint_angles, no_ik_failure)
 
-            # My EMG2Pose 
-            with timer("My emg2pose"):
-                preds, joint_angles, no_ik_failure = emg2pose_inferece(self.eval_data, my_emg2pose_model)
-                self.model_metrics(label, "my_emg2pose", my_emg2pose_model, preds, joint_angles, no_ik_failure)
+            # # My EMG2Pose 
+            # with timer("My emg2pose"):
+            #     preds, joint_angles, no_ik_failure = emg2pose_inferece(self.eval_data, my_emg2pose_model)
+            #     self.model_metrics(label, "my_emg2pose", my_emg2pose_model, preds, joint_angles, no_ik_failure)
 
             # Classical ML
             with timer("Classical ML"):
-                ridge_pred, svr_pred, pls_pred, gt, classic_ml_mask = classic_ml_inference(
-                    self.eval_data, ridge_model, svr_model, pls_model
+                ridge_pred, _, pls_pred, gt, classic_ml_mask = classic_ml_inference(
+                    self.eval_data, ridge_model, None, pls_model
                 )
 
             with timer("Ridge"):
                 self.model_metrics(label, "ridge", ridge_model, ridge_pred, gt, classic_ml_mask)
-            with timer("SVR"):
-                self.model_metrics(label, "svr", svr_model, svr_pred, gt, classic_ml_mask)
+            # with timer("SVR"):
+            #     self.model_metrics(label, "svr", svr_model, svr_pred, gt, classic_ml_mask)
             with timer("PLS"):
                 self.model_metrics(label, "pls", pls_model, pls_pred, gt, classic_ml_mask) 
 
@@ -237,7 +253,7 @@ if __name__ == "__main__":
         "--data_regime",
         type=str,
         choices=["single_session", "single_user", "multi_user", "full"],
-        default="single_session"
+        default="test"
     )
     parser.add_argument("--data_dir", type=str, default=DEFAULT_DATA_DIR)
 
