@@ -45,22 +45,30 @@ def small_lstm_inference(data, model, seq_len, ds_factor, stride):
 
     return preds, y_gt, mask_aligned
 
-def lstm_window_inference(window, model, ds_factor):
+def lstm_window_inference(window, model, ds_factor, gt_window, mask_window):
     """
-    window: (T, C)
+    window: (T, C) raw EMG window
+    gt_window: (T, D) raw joint angles aligned with window
+    mask_window: (T,) raw mask aligned with window
     """
-    # downsample FIRST
 
-    window = window[::ds_factor]
+    # --- downsample everything consistently ---
+    window_ds = window[::ds_factor]
+    gt_ds = gt_window[::ds_factor]
+    mask_ds = mask_window[::ds_factor]
 
     model.eval()
 
-    x = torch.tensor(window[None, ...], dtype=torch.float32)  # (1, T, C)
+    x = torch.tensor(window_ds[None, ...], dtype=torch.float32)
 
     with torch.no_grad():
-        pred = model(x).cpu().numpy()  # (1, output_dim)
+        pred = model(x).cpu().numpy()
 
-    return pred[0]  # (output_dim,)
+    # --- match batch logic: last timestep of window ---
+    gt = gt_ds[-1]
+    mask = mask_ds[-1]
+
+    return pred[0], gt, mask
 
 def emg2pose_inferece(data: Emg2PoseSessionData, module):
 
@@ -100,9 +108,11 @@ def emg2pose_inferece(data: Emg2PoseSessionData, module):
 
     return preds, joint_angles, no_ik_failure
 
-def emg2pose_window_inference(window, module):
+def emg2pose_window_inference(window, module, gt_window, mask_window):
     """
-    window: np.ndarray of shape (T, C)
+    window: (T, C)
+    gt_window: (T, D)
+    mask_window: (T,)
     """
 
     # (T, C) -> (1, C, T)
@@ -110,8 +120,7 @@ def emg2pose_window_inference(window, module):
 
     batch = {
         "emg": emg,
-        # dummy placeholders (required by forward)
-        "joint_angles": torch.zeros((1, 20, emg.shape[-1])),  # adjust 20 if needed
+        "joint_angles": torch.zeros((1, gt_window.shape[1], emg.shape[-1])),
         "no_ik_failure": torch.ones((1, emg.shape[-1]))
     }
 
@@ -123,7 +132,12 @@ def emg2pose_window_inference(window, module):
     # (1, C_out, T) -> (T, C_out)
     preds = preds[0].T.detach().cpu().numpy()
 
-    return preds
+    # --- align like LSTM: last timestep ---
+    pred = preds[-1]
+    gt = gt_window[-1]
+    mask = mask_window[-1]
+
+    return pred, gt, mask
 
 def classic_ml_inference(data, ridge_model, svr_model, pls_model):
 
@@ -136,17 +150,34 @@ def classic_ml_inference(data, ridge_model, svr_model, pls_model):
 
     return ridge_pred, svr_pred, pls_pred, gt, mask
 
-def ridge_window_inference(window, ridge_model):
+def ridge_window_inference(window, ridge_model, gt_window, mask_window):
     x_features = features_window(window)
     x_features = x_features[None, :]
-    return ridge_model.predict(x_features)[0]
+    pred = ridge_model.predict(x_features)[0]
 
-def svr_window_inference(window, svr_model):
-    x_features = features_window(window)
-    x_features = x_features[None, :]
-    return svr_model.predict(x_features)[0]
+    gt = gt_window[-1]
+    mask = mask_window[-1]
 
-def pls_window_inference(window, pls_model):
+    return pred, gt, mask
+
+
+def svr_window_inference(window, svr_model, gt_window, mask_window):
     x_features = features_window(window)
     x_features = x_features[None, :]
-    return pls_model.predict(x_features)[0]
+    pred = svr_model.predict(x_features)[0]
+
+    gt = gt_window[-1]
+    mask = mask_window[-1]
+
+    return pred, gt, mask
+
+
+def pls_window_inference(window, pls_model, gt_window, mask_window):
+    x_features = features_window(window)
+    x_features = x_features[None, :]
+    pred = pls_model.predict(x_features)[0]
+
+    gt = gt_window[-1]
+    mask = mask_window[-1]
+
+    return pred, gt, mask

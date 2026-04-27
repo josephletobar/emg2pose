@@ -295,11 +295,11 @@ def train_emg2pose(user_train_dict, data_dir, epochs):
     return module
 
 def build_features(user_train_dict):
-    train_sessions_list = _concat_sessions(user_train_dict) # list of all training sessions
+    train_sessions_list = _concat_sessions(user_train_dict)
 
-    X_all, y_all = [], [] # build feature dataset
+    X_all, y_all = [], []
 
-    for session in train_sessions_list:
+    for session in tqdm(train_sessions_list, desc="Building features"):
         data = Emg2PoseSessionData(hdf5_path=session)
         X_feats, y_out, _ = features(data)
 

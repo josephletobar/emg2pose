@@ -116,18 +116,22 @@ class ExperimentRunner():
         if not unseen_users:
             raise ValueError("No unseen users available (all users were used in training)")
 
-        # pick random unseen user
-        rand_user = random.choice(unseen_users)
+        while True:
+            rand_user = random.choice(unseen_users)
+            sessions = list(rand_user.glob("*.hdf5"))
+            if not sessions:
+                continue
 
-        # get sessions for that user
-        sessions = sorted(rand_user.glob("*.hdf5"))
-
-        # pick random session
-        rand_session = random.choice(sessions)
+            rand_session = random.choice(sessions)
+            try:
+                _ = Emg2PoseSessionData(hdf5_path=rand_session)
+                break
+            except:
+                continue
 
         self.unseen_user_session = rand_session
         return rand_session
-    
+        
     def model_metrics(self, label, 
                     model_type, model,
                     preds, gt, mask,
@@ -139,11 +143,22 @@ class ExperimentRunner():
             "Model": model_type,
             **m.main
         })
-        latency = stream_inference(self.eval_data, self.MODEL_CONFIGS[model_type]["window_fn"], model, self.MODEL_CONFIGS[model_type]["WINDOW"], self.MODEL_CONFIGS[model_type]["STRIDE"], **kwargs)
-
+        latency, _, _, _ = stream_inference(self.eval_data, self.MODEL_CONFIGS[model_type]["window_fn"], model, self.MODEL_CONFIGS[model_type]["WINDOW"], self.MODEL_CONFIGS[model_type]["STRIDE"], **kwargs)
         self.latency_rows.append({
             "Model": model_type,
             **latency
+        })
+
+        ema_latency, ema_preds, ema_gt, ema_mask = stream_inference(self.eval_data, self.MODEL_CONFIGS[model_type]["window_fn"], model, self.MODEL_CONFIGS[model_type]["WINDOW"], self.MODEL_CONFIGS[model_type]["STRIDE"], use_ema=True, **kwargs)
+        ema_m = ExperimentMetrics(ema_preds, ema_gt, ema_mask)
+        self.metrics_rows.append({
+            "Test Set": label,
+            "Model": f"ema_{model_type}",
+            **ema_m.main
+        })
+        self.latency_rows.append({
+            "Model": f"ema_{model_type}",
+            **ema_latency
         })
 
         print(f"  [{model_type} | {label}]")
@@ -154,7 +169,17 @@ class ExperimentRunner():
         for k, v in latency.items():
             print(f"    {k:25s}: {v:.4f}")
 
+        # ema metrics
+        print("  ema metrics:")
+        for k, v in ema_m.main.items():
+            print(f"    {k:25s}: {v:.4f}")
+        print("  ema latency:")
+        for k, v in ema_latency.items():
+            print(f"    {k:25s}: {v:.4f}")
+
         m.save_outputs(f"{self.save_dir}/{label}_{model_type}", self.MODEL_CONFIGS[model_type]["native_fs"])
+        ema_m.save_outputs(f"{self.save_dir}/{label}_ema_{model_type}", self.MODEL_CONFIGS[model_type]["native_fs"])
+    
     
     def run(self):
 
@@ -171,7 +196,8 @@ class ExperimentRunner():
         print(f"Users selected: {len(self.user_train_dict)}")
 
         for user, sessions in self.user_train_dict.items():
-            print(f"  {user.name}: {len(sessions)} session(s)\n")        
+            print(f"  {user.name}: {len(sessions)} session(s)")
+        print()        
 
         # Train models
         with timer("LSTM Training"):
