@@ -170,7 +170,7 @@ class ExperimentMetrics:
 
         return frames
         
-    def save_outputs(self, save_dir, native_fs):
+    def save_outputs(self, save_dir, native_fs, video_bool=False):
         import os
         os.makedirs(save_dir, exist_ok=True)
 
@@ -179,7 +179,8 @@ class ExperimentMetrics:
         fig.savefig(f"{save_dir}/_plot.png", bbox_inches="tight")
 
         # save video
-        self.save_video(f"{save_dir}/_visual.mp4", native_fs)
+        if video_bool:
+            self.save_video(f"{save_dir}/_visual.mp4", native_fs)
 
     @property
     def all(self):

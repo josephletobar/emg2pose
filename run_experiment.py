@@ -24,8 +24,11 @@ from experiments.models_inference.classic_ml import pls_window_inference, ridge_
 from experiments.models_inference.conv_lstm import lstm_window_inference, small_lstm_inference
 from experiments.models_inference.emg2pose import emg2pose_inferece, emg2pose_window_inference
 
-
 DEFAULT_DATA_DIR = Path("/Volumes") / "Crucial X9" # local machine
+
+ALL_MODELS = {"lstm", "ridge", "pls", "svr", "meta"}
+
+SAVE_VIDEO = False
 
 @contextmanager
 def timer(name):
@@ -37,7 +40,7 @@ def timer(name):
 
 class ExperimentRunner():
 
-    def __init__(self, data_regime, data_dir):
+    def __init__(self, data_regime, data_dir, models_to_run):
 
         # Data regime flag
         self.data_regime = data_regime
@@ -45,6 +48,8 @@ class ExperimentRunner():
         # Save dir
         self.save_dir = f"results/{self.data_regime}/{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
         Path(self.save_dir).mkdir(parents=True, exist_ok=True)
+
+        self.models_to_run = models_to_run
 
         # Dictionary containing user(s) and their respective session(s) to train models on
         self.user_train_dict = {}
@@ -63,8 +68,7 @@ class ExperimentRunner():
             if p.is_dir()
         ])
 
-        
-
+        # stores used frequency, functions, windowing, and striding to keep models consistent
         self.MODEL_CONFIGS = {
             "lstm": {
                 "native_fs": 500,
@@ -186,8 +190,8 @@ class ExperimentRunner():
         for k, v in ema_latency.items():
             print(f"    {k:25s}: {v:.4f}")
 
-        m.save_outputs(f"{self.save_dir}/{label}_{model_type}", self.MODEL_CONFIGS[model_type]["native_fs"])
-        ema_m.save_outputs(f"{self.save_dir}/{label}_ema_{model_type}", self.MODEL_CONFIGS[model_type]["native_fs"])
+        m.save_outputs(f"{self.save_dir}/{label}_{model_type}", self.MODEL_CONFIGS[model_type]["native_fs"], SAVE_VIDEO)
+        ema_m.save_outputs(f"{self.save_dir}/{label}_ema_{model_type}", self.MODEL_CONFIGS[model_type]["native_fs"], SAVE_VIDEO)
     
     
     def run(self):
@@ -209,19 +213,19 @@ class ExperimentRunner():
         print()        
 
         # Train models
-        # with timer("LSTM Training"):
-        #     emg, joint_angles_lstm = concat_data(self.user_train_dict)
-        #     small_lstm_model, seq_len, ds_factor, stride = train_small_lstm(emg, joint_angles_lstm, epochs=5)
+        if "lstm" in self.models_to_run:
+            with timer("LSTM Training"):
+                emg, joint_angles_lstm = concat_data(self.user_train_dict)
+                small_lstm_model, seq_len, ds_factor, stride = train_small_lstm(emg, joint_angles_lstm, epochs=5)
 
-        # with timer("Get Meta emg2pose"):
-        #     meta_emg2pose_model = get_emg2pose(self.data_dir)
+        if "meta" in self.models_to_run:
+            with timer("Get Meta emg2pose"):
+                meta_emg2pose_model = get_emg2pose(self.data_dir)
 
-        # with timer("emg2pose Training"):
-        #     my_emg2pose_model = train_emg2pose(self.user_train_dict, self.data_dir, epochs=5)
-
-        with timer("Classical ML Training"):
-            emg_features, joint_angles_ml = build_features(self.user_train_dict)
-            ridge_model, _, pls_model = train_classic_ml(emg_features, joint_angles_ml)
+        if any(m in self.models_to_run for m in ["ridge", "svr", "pls"]):
+            with timer("Classical ML Training"):
+                emg_features, joint_angles_ml = build_features(self.user_train_dict)
+                ridge_model, _, pls_model = train_classic_ml(emg_features, joint_angles_ml)
 
         # Get metrics
         for label, session_function in [
@@ -233,47 +237,53 @@ class ExperimentRunner():
 
             eval_session = session_function()
             self.eval_data = Emg2PoseSessionData(hdf5_path=eval_session)
-            if hasattr(ridge_model, "_prev"):
-                del ridge_model._prev
-            if hasattr(pls_model, "_prev"):
-                del pls_model._prev
+
+            # regressive classical models
+            if "ridge" in self.models_to_run:
+                if hasattr(ridge_model, "_prev"):
+                    del ridge_model._prev
+            if "pls" in self.models_to_run:                    
+                if hasattr(pls_model, "_prev"):
+                    del pls_model._prev
+                
             frames = joint_angles_to_frames_parallel(downsample(self.eval_data["joint_angles"], 2000, 30)[0:250])
             frames = remove_alpha_channel(frames)
             media.write_video(f"{self.save_dir}/ground_truth_{label}_eval.mp4", frames, fps=30)
             print()
         
             # Small LSTM
-            # with timer("LSTM"):
-            #     lstm_preds, lstm_gt, mask_lstm = small_lstm_inference(
-            #         self.eval_data, small_lstm_model, seq_len, ds_factor, stride
-            #     )
-            #     self.MODEL_CONFIGS["lstm"]["WINDOW"] = seq_len
-            #     self.MODEL_CONFIGS["lstm"]["STRIDE"] = stride
+            if "lstm" in self.models_to_run:
+                with timer("LSTM"):
+                    lstm_preds, lstm_gt, mask_lstm = small_lstm_inference(
+                        self.eval_data, small_lstm_model, seq_len, ds_factor, stride
+                    )
+                    self.MODEL_CONFIGS["lstm"]["WINDOW"] = seq_len
+                    self.MODEL_CONFIGS["lstm"]["STRIDE"] = stride
 
-            #     self.model_metrics(label, "lstm", small_lstm_model, lstm_preds, lstm_gt, mask_lstm, ds_factor=ds_factor)
+                    self.model_metrics(label, "lstm", small_lstm_model, lstm_preds, lstm_gt, mask_lstm, ds_factor=ds_factor)
 
-            # # Meta EMG2Pose
-            # with timer("Meta emg2pose"):
-            #     preds, joint_angles, no_ik_failure = emg2pose_inferece(self.eval_data, meta_emg2pose_model)
-            #     self.model_metrics(label, "meta_emg2pose", meta_emg2pose_model, preds, joint_angles, no_ik_failure)
-
-            # # My EMG2Pose 
-            # with timer("My emg2pose"):
-            #     preds, joint_angles, no_ik_failure = emg2pose_inferece(self.eval_data, my_emg2pose_model)
-            #     self.model_metrics(label, "my_emg2pose", my_emg2pose_model, preds, joint_angles, no_ik_failure)
+            # Meta EMG2Pose
+            if "meta" in self.models_to_run:
+                with timer("Meta emg2pose"):
+                    preds, joint_angles, no_ik_failure = emg2pose_inferece(self.eval_data, meta_emg2pose_model)
+                    self.model_metrics(label, "meta_emg2pose", meta_emg2pose_model, preds, joint_angles, no_ik_failure)
 
             # Classical ML
-            with timer("Classical ML"):
-                ridge_pred, _, pls_pred, gt, classic_ml_mask = classic_ml_inference(
-                    self.eval_data, ridge_model, None, pls_model
-                )
+            if any(m in self.models_to_run for m in ["ridge", "svr", "pls"]):
+                with timer("Classical ML"):
+                    ridge_pred, _, pls_pred, gt, classic_ml_mask = classic_ml_inference(
+                        self.eval_data, ridge_model, None, pls_model
+                    )
+            if "ridge" in self.models_to_run:
+                with timer("Ridge"):
+                    self.model_metrics(label, "ridge", ridge_model, ridge_pred, gt, classic_ml_mask)
+            # if "svr" in self.models_to_run:        
+                # with timer("SVR"):
+                #     self.model_metrics(label, "svr", svr_model, svr_pred, gt, classic_ml_mask)
+            if "pls" in self.models_to_run:
+                with timer("PLS"):
+                    self.model_metrics(label, "pls", pls_model, pls_pred, gt, classic_ml_mask) 
 
-            with timer("Ridge"):
-                self.model_metrics(label, "ridge", ridge_model, ridge_pred, gt, classic_ml_mask)
-            # with timer("SVR"):
-            #     self.model_metrics(label, "svr", svr_model, svr_pred, gt, classic_ml_mask)
-            with timer("PLS"):
-                self.model_metrics(label, "pls", pls_model, pls_pred, gt, classic_ml_mask) 
 
         save_metrics_table(self.metrics_rows, self.save_dir)  
         save_latency_table(self.latency_rows, self.save_dir)
@@ -281,20 +291,34 @@ class ExperimentRunner():
 if __name__ == "__main__":
     import argparse
 
+    # arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--data_regime",
-        type=str,
-        choices=["single_session", "single_user", "multi_user", "full"],
-        default="test"
-    )
+
+    parser.add_argument("--data_regime", type=str, choices=["single_session", "single_user", "multi_user", "full"], default="test")
+
     parser.add_argument("--data_dir", type=str, default=DEFAULT_DATA_DIR)
+
+    parser.add_argument("--save_video", action="store_true")
+
+    parser.add_argument("--only", nargs="+", choices=ALL_MODELS, help="models to run")
+    parser.add_argument("--skip", nargs="+", choices=ALL_MODELS, help="models to skip")
 
     args = parser.parse_args()
 
+    if args.only:
+        models_to_run = set(args.only)
+    else:
+        models_to_run = ALL_MODELS - set(args.skip or [])
+
+    print(f"Running: {models_to_run}")
+
+    SAVE_VIDEO = args.save_video
+
+    # entry point
     runner = ExperimentRunner(
         data_regime=args.data_regime,
         data_dir=args.data_dir, 
+        models_to_run=models_to_run,
         )
 
     runner.run()
