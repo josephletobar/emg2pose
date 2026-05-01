@@ -26,7 +26,7 @@ from experiments.models_inference.emg2pose import emg2pose_inferece, emg2pose_wi
 
 DEFAULT_DATA_DIR = Path("/Volumes") / "Crucial X9" # local machine
 
-ALL_MODELS = {"lstm", "ridge", "pls", "svr", "meta"}
+ALL_MODELS = {"lstm", "ridge", "pls", "meta"}
 
 SAVE_VIDEO = False
 SELECT_USER = None
@@ -198,8 +198,6 @@ class ExperimentRunner():
     
     
     def run(self):
-
-        print(SELECT_USER)
 
         self.user_train_dict, self.held_out_session = load_data(self.data_regime, self.user_list, SELECT_USER)
 

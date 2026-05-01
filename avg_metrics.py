@@ -1,14 +1,22 @@
 from pathlib import Path
 import pandas as pd
+from datetime import datetime
 
 ROOT = Path("results/single_user")
+
+RUN_DATE = None # 
 
 metrics_all = []
 latency_all = []
 
 # loop over run folders
 for run_dir in ROOT.iterdir():
+    # skip non-directories
     if not run_dir.is_dir():
+        continue
+
+    # optional date filter
+    if RUN_DATE is not None and not run_dir.name.startswith(RUN_DATE):
         continue
 
     metrics_path = run_dir / "metrics.csv"
@@ -43,7 +51,8 @@ latency_avg = (
 )
 
 # save
-metrics_avg.to_csv("results/avg_metrics.csv", index=False)
-latency_avg.to_csv("results/avg_latency.csv", index=False)
+now = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+metrics_avg.to_csv(f"results/avg_metrics_{now}.csv", index=False)
+latency_avg.to_csv(f"results/avg_latency_{now}.csv", index=False)
 
-print("Saved avg_metrics.csv and avg_latency.csv")
+print(f"Saved avg_metrics_{now}.csv and avg_latency_{now}.csv")
