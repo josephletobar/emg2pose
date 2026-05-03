@@ -13,11 +13,6 @@ This project builds on the [emg2pose work by Facebook Research](https://github.c
 > ## Data  
 > The entire dataset has 25,253 HDF5 files, each consisting of time-aligned, 2kHz sEMG and joint angles for a single hand in a single stage. Each stage is ~1 minute. There are 193 participants, spanning 370 hours and 29 stages. `emg2pose.data.Emg2PoseSessionData` offers a programmatic read-only interface into the HDF5 session files.  
 >  
-> The full dataset statistics are as follows:
-
-<p align="center">
-  <img src="images/dataset_stats.png" alt="Dataset statistics" width="75%">
-</p>
 
 > The `metadata.csv` file includes the following information for each HDF5 file:  
 >  
@@ -35,10 +30,6 @@ This project builds on the [emg2pose work by Facebook Research](https://github.c
 
 > — Source: [Original emg2pose repository (Facebook Research)](https://github.com/facebookresearch/emg2pose)
 
-## My Extension
-
-## Setup
-
 ### Download the Full Dataset (431 GiB)
 
 ```shell
@@ -49,7 +40,7 @@ cd ~ && curl https://fb-ctrl-oss.s3.amazonaws.com/emg2pose/emg2pose_dataset.tar 
 tar -xvf emg2pose_dataset.tar
 ```
 
-## Downloading Pre-trained Checkpoints
+### Downloading Pre-trained Checkpoints
 
 Meta provides pre-trained checkpoints (as `.ckpt` files) for the following:
 
@@ -65,6 +56,4 @@ cd ~ && curl "https://fb-ctrl-oss.s3.amazonaws.com/emg2pose/emg2pose_model_check
 tar -xvzf emg2pose_model_checkpoints.tar.gz
 ```
 
-## License
 
-This project is based on the original emg2pose repository by Facebook Research, which is licensed under CC-BY-NC-SA-4.0.
