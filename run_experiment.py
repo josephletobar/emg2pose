@@ -177,6 +177,12 @@ class ExperimentRunner():
             **ema_latency
         })
 
+        print("Per Joint Errors:")
+        errors = m.joint_angle_error()
+        for i, e in enumerate(errors):
+            print(f"Joint {i}: {e:.2f}°")
+        print()
+
         print(f"  [{model_type} | {label}]")
         print("  metrics:")
         for k, v in m.main.items():

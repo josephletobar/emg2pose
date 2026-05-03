@@ -89,6 +89,41 @@ class ExperimentMetrics:
 
         return pred, target, mask
     
+    def joint_angle_error(self):
+        pred = self._to_tensor(self.preds)
+        target = self._to_tensor(self.joint_angles)
+        mask = self._to_tensor(self.no_ik_failure, is_mask=True)
+
+        # shape fix
+        if pred.ndim == 2:
+            pred = pred.T.unsqueeze(0)
+        if target.ndim == 2:
+            target = target.T.unsqueeze(0)
+        if mask.ndim == 1:
+            mask = mask.unsqueeze(0)
+
+        # align lengths
+        T = min(pred.shape[-1], target.shape[-1], mask.shape[-1])
+        pred = pred[..., :T]
+        target = target[..., :T]
+        mask = mask[..., :T]
+
+        pred = pred[0].cpu().numpy()     # (C, T)
+        target = target[0].cpu().numpy()
+        mask = mask[0].cpu().numpy()     # (T,)
+
+        # apply mask
+        pred = pred[:, mask]
+        target = target[:, mask]
+
+        # per-joint MAE
+        mae_per_joint = np.mean(np.abs(pred - target), axis=1)
+
+        # convert to degrees
+        mae_per_joint = np.degrees(mae_per_joint)
+
+        return mae_per_joint
+
     # default representative joints thumb, index, little
     def plot(self, native_fs, joints=[2, 6, 18]):
         import matplotlib.pyplot as plt
