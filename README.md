@@ -75,7 +75,7 @@ Code requirements are specified in `environment.yml`, which includes dependencie
   - `stream_emg.py`  
     Provides an interface for simulating streaming EMG data, approximating real-time conditions.
 
-- `experiments` folder  (used for additional analysis supporting the paper)
+- `notebooks` folder  (used for additional analysis supporting the paper)
   - `fine_tune.ipynb`  
     Fine-tunes the emg2pose model by freezing earlier layers and adapting it to a selected held-out user.
   - `subset_training.ipynb`  
