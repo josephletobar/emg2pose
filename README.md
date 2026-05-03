@@ -27,27 +27,13 @@ The `metadata.csv` file includes the following information for each HDF5 file:
 
 ### Download the Full Dataset (431 GiB)
 
-```shell
-# Download the full (431 GiB) version of the dataset, extract to ~/emg2pose_dataset
-cd ~ && curl https://fb-ctrl-oss.s3.amazonaws.com/emg2pose/emg2pose_dataset.tar -o emg2pose_dataset.tar
-
-# Unpack the tar to ~/emg2pose_dataset
-tar -xvf emg2pose_dataset.tar
-```
+https://fb-ctrl-oss.s3.amazonaws.com/emg2pose/emg2pose_dataset.tar
 
 ### Downloading Pre-trained Checkpoints
 
-1. vemg2pose (tracking, regression settings)
+https://fb-ctrl-oss.s3.amazonaws.com/emg2pose/emg2pose_model_checkpoints.tar.gz
 
-To download and unpack these checkpoints, run the following.
 
-```shell
-# Download checkpoints
-cd ~ && curl "https://fb-ctrl-oss.s3.amazonaws.com/emg2pose/emg2pose_model_checkpoints.tar.gz" -o emg2pose_model_checkpoints.tar.gz
-
-# Unpack to ~/emg2pose_model_checkpoints
-tar -xvzf emg2pose_model_checkpoints.tar.gz
-```
 
 > — Source: [Original emg2pose repository (Facebook Research)](https://github.com/facebookresearch/emg2pose)
 
